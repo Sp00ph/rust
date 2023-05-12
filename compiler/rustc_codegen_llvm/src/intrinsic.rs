@@ -1988,6 +1988,36 @@ fn generic_simd_intrinsic<'ll, 'tcx>(
             })*
         }
     }
+
+    if name == sym::simd_rotate_left || name == sym::simd_rotate_right {
+        if matches!(in_elem.kind(), ty::Int(_) | ty::Uint(_)) {
+            let intrinsic = if name == sym::simd_rotate_left { "fshl" } else { "right" };
+            let llvm_vector_ty = llvm_vector_ty(bx, in_elem, in_len, 0);
+            let llvm_vector_str = llvm_vector_str(in_elem, in_len, 0, bx);
+
+            let llvm_intrinsic = format!("llvm.{intrinsic}.{llvm_vector_str}");
+            let fn_ty = bx.type_func(
+                &[llvm_vector_ty, llvm_vector_ty, llvm_vector_ty],
+                llvm_vector_ty
+            );
+            let f = bx.declare_cfn(&llvm_intrinsic, llvm::UnnamedAddr::No, fn_ty);
+            let v = bx.call(
+                fn_ty,
+                None,
+                None,
+                f,
+                &[args[0].immediate(), args[0].immediate(), args[1].immediate()],
+                None
+            );
+            return Ok(v);
+        }
+
+        require!(
+            false,
+            InvalidMonomorphization::UnsupportedOperation { span, name, in_ty, in_elem }
+        )
+    }
+
     arith_unary! {
         simd_neg: Int => neg, Float => fneg;
     }

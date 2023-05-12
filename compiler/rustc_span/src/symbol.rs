@@ -1400,6 +1400,8 @@ symbols! {
         simd_reduce_or,
         simd_reduce_xor,
         simd_rem,
+        simd_rotate_left,
+        simd_rotate_right,
         simd_round,
         simd_saturating_add,
         simd_saturating_sub,

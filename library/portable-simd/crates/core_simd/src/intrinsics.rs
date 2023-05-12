@@ -21,6 +21,10 @@
 // These intrinsics aren't linked directly from LLVM and are mostly undocumented, however they are
 // mostly lowered to the matching LLVM instructions by the compiler in a fairly straightforward manner.
 // The associated LLVM instruction or intrinsic is documented alongside each Rust intrinsic function.
+
+#[cfg(bootstrap)]
+use crate::simd::{SimdElement, LaneCount, SupportedLaneCount, Simd};
+
 extern "platform-intrinsic" {
     /// add/fadd
     pub(crate) fn simd_add<T>(x: T, y: T) -> T;
@@ -51,6 +55,11 @@ extern "platform-intrinsic" {
     /// uints: lshr
     /// poison if rhs >= lhs::BITS
     pub(crate) fn simd_shr<T>(lhs: T, rhs: T) -> T;
+
+    #[cfg(not(bootstrap))]
+    pub(crate) fn simd_rotate_left<T>(lhs: T, rhs: T) -> T;
+    #[cfg(not(bootstrap))]
+    pub(crate) fn simd_rotate_right<T>(lhs: T, rhs: T) -> T;
 
     /// and
     pub(crate) fn simd_and<T>(x: T, y: T) -> T;
@@ -160,4 +169,26 @@ extern "platform-intrinsic" {
 
     /// convert an exposed address back to a pointer
     pub(crate) fn simd_from_exposed_addr<T, U>(addr: T) -> U;
+}
+
+#[cfg(bootstrap)]
+pub(crate) unsafe fn simd_rotate_left<T, const N: usize>(lhs: Simd<T, N>, rhs: Simd<T, N>) -> Simd<T, N>
+where
+T: SimdElement,
+LaneCount<N>: SupportedLaneCount
+{
+    let v = simd_as(Simd::splat(core::mem::size_of::<T>() * 8));
+    let shr_rhs = simd_sub(v, rhs);
+    simd_or(simd_shl(lhs, rhs), simd_shr(lhs, shr_rhs))
+}
+
+#[cfg(bootstrap)]
+pub(crate) unsafe fn simd_rotate_right<T, const N: usize>(lhs: Simd<T, N>, rhs: Simd<T, N>) -> Simd<T, N>
+where
+    T: SimdElement,
+    LaneCount<N>: SupportedLaneCount
+{
+    let v = simd_as(Simd::splat(core::mem::size_of::<T>() * 8));
+    let shl_rhs = simd_sub(v, rhs);
+    simd_or(simd_shr(lhs, rhs), simd_shl(lhs, shl_rhs))
 }

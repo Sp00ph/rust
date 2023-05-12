@@ -252,3 +252,32 @@ for_base_ops! {
         unsafe_base { simd_rem }
     }
 }
+
+macro_rules! impl_rotate {
+    ($($tys:ident),+) => {
+        $(
+            impl<const N: usize> Simd<$tys, N>
+            where
+                LaneCount<N>: SupportedLaneCount
+            {
+                #[inline]
+                #[must_use = "function returns a new vector without mutating the inputs"]
+                /// Rotates each element of the first vector to the left
+                /// by the amount specified in the second vector
+                pub fn rotate_left(self, rhs: Self) -> Self {
+                    wrap_bitshift!(self, rhs, {simd_rotate_left}, $tys)
+                }
+                
+                #[inline]
+                #[must_use = "function returns a new vector without mutating the inputs"]
+                /// Rotates each element of the first vector to the right
+                /// by the amount specified in the second vector
+                pub fn rotate_right(self, rhs: Self) -> Self {
+                    wrap_bitshift!(self, rhs, {simd_rotate_right}, $tys)
+                }
+            }
+        )+
+    }
+}
+
+impl_rotate!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
