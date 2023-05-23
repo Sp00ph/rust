@@ -545,6 +545,18 @@ where
         unsafe { intrinsics::simd_gather(or, source, enable.to_int()) }
     }
 
+    /// Masked SIMD load.
+    #[must_use]
+    #[inline]
+    #[cfg(not(bootstrap))]
+    pub unsafe fn masked_load(
+        ptr: *const T,
+        enable: Mask<isize, N>,
+        or: Self
+    ) -> Self {
+        unsafe { intrinsics::simd_masked_load(or, ptr, enable.to_int()) }
+    }
+
     /// Writes the values in a SIMD vector to potentially discontiguous indices in `slice`.
     /// If an index is out-of-bounds, the write is suppressed without panicking.
     /// If two elements in the scattered vector would write to the same index

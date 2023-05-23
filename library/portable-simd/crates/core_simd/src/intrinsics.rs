@@ -103,9 +103,27 @@ extern "platform-intrinsic" {
     /// note, the LLVM intrinsic accepts a mask vector of `<N x i1>`
     /// FIXME: review this if/when we fix up our mask story in general?
     pub(crate) fn simd_gather<T, U, V>(val: T, ptr: U, mask: V) -> T;
+
     /// llvm.masked.scatter
     /// like gather, but more spicy, as it writes instead of reads
     pub(crate) fn simd_scatter<T, U, V>(val: T, ptr: U, mask: V);
+    
+    /// llvm.masked.load
+    /// The `i`-th element of the return value is `*ptr.add(i)` if `mask[i]` is set
+    /// and `val[i]` otherwise. The pointer should be aligned to the element type
+    /// of the vector
+    /// 
+    /// val: vector of values to select if a lane is masked
+    /// ptr: pointer to the first element to be read. Should be aligned to the element type
+    /// mask: a "wide" mask of integers
+    #[cfg(not(bootstrap))]
+    pub(crate) fn simd_masked_load<T, U, V>(val: T, ptr: U, mask: V) -> T;
+
+    /// llvm.masked.store
+    /// Stores the `i`-th element of `val` to `ptr.add(i)` iff `mask[i]` is set.
+    /// The pointer should be aligned to the element type of the vector.
+    #[cfg(not(bootstrap))]
+    pub(crate) fn simd_masked_store<T, U, V>(val: T, ptr: U, mask: V);
 
     // {s,u}add.sat
     pub(crate) fn simd_saturating_add<T>(x: T, y: T) -> T;

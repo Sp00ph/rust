@@ -1382,6 +1382,8 @@ symbols! {
         simd_insert,
         simd_le,
         simd_lt,
+        simd_masked_load,
+        simd_masked_store,
         simd_mul,
         simd_ne,
         simd_neg,

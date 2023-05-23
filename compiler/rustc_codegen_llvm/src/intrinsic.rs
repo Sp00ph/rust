@@ -1575,6 +1575,126 @@ fn generic_simd_intrinsic<'ll, 'tcx>(
         return Ok(v);
     }
 
+    if name == sym::simd_masked_load {
+        // simd_masked_load(values: <N x T>, pointer: *_ T,
+        //             mask: <N x i{M}>) -> <N x T>
+        // * N: number of elements in the input vectors
+        // * T: type of the element to load
+        // * M: any integer width is supported, will be truncated to i1
+
+        // `val` and `mask` must be vectors, `pointer` must be a pointer to the element type
+        require_simd!(in_ty, InvalidMonomorphization::SimdFirst { span, name, ty: in_ty });
+        require_simd!(
+            arg_tys[2],
+            InvalidMonomorphization::SimdThird { span, name, ty: arg_tys[2] }
+        );
+        require_simd!(ret_ty, InvalidMonomorphization::SimdReturn { span, name, ty: ret_ty });
+
+        let (out_len, _) = arg_tys[2].simd_size_and_type(bx.tcx());
+        require!(
+            in_len == out_len,
+            InvalidMonomorphization::ThirdArgumentLength {
+                span,
+                name,
+                in_len,
+                in_ty,
+                arg_ty: arg_tys[2],
+                out_len: out_len
+            }
+        );
+
+        // The return type must match the first argument type
+        require!(
+            ret_ty == in_ty,
+            InvalidMonomorphization::ExpectedReturnType { span, name, in_ty, ret_ty }
+        );
+
+        // This counts how many pointers
+        fn ptr_count(t: Ty<'_>) -> usize {
+            match t.kind() {
+                ty::RawPtr(p) => 1 + ptr_count(p.ty),
+                _ => 0,
+            }
+        }
+
+        // Non-ptr type
+        fn non_ptr(t: Ty<'_>) -> Ty<'_> {
+            match t.kind() {
+                ty::RawPtr(p) => non_ptr(p.ty),
+                _ => t,
+            }
+        }
+
+        let (_, element_ty0) = arg_tys[0].simd_size_and_type(bx.tcx());
+        let ptr_ty = arg_tys[1];
+        let (pointer_count, underlying_ty) = match ptr_ty.kind() {
+            ty::RawPtr(p) if p.ty == in_elem => (ptr_count(ptr_ty), non_ptr(ptr_ty)),
+            _ => {
+                require!(
+                    false,
+                    InvalidMonomorphization::ExpectedPointer { span, name, ty: ptr_ty }
+                );
+                unreachable!();
+            }
+        };
+        assert!(pointer_count > 0);
+        assert_eq!(pointer_count - 1, ptr_count(element_ty0));
+        assert_eq!(underlying_ty, non_ptr(element_ty0));
+
+        // The element type of the third argument must be a signed integer type of any width:
+        let (_, element_ty2) = arg_tys[2].simd_size_and_type(bx.tcx());
+        match element_ty2.kind() {
+            ty::Int(_) => (),
+            _ => {
+                require!(
+                    false,
+                    InvalidMonomorphization::ThirdArgElementType {
+                        span,
+                        name,
+                        expected_element: element_ty2,
+                        third_arg: arg_tys[2]
+                    }
+                );
+            }
+        }
+
+        // Alignment of T, must be a constant integer value:
+        let alignment_ty = bx.type_i32();
+        let alignment = bx.const_i32(bx.align_of(in_elem).bytes() as i32);
+
+        // Truncate the mask vector to a vector of i1s:
+        let (mask, mask_ty) = {
+            let i1 = bx.type_i1();
+            let i1xn = bx.type_vector(i1, in_len);
+            (bx.trunc(args[2].immediate(), i1xn), i1xn)
+        };
+
+        // Type of the vector of elements:
+        let llvm_elem_vec_ty = llvm_vector_ty(bx, underlying_ty, in_len, pointer_count - 1);
+        let llvm_elem_vec_str = llvm_vector_str(underlying_ty, in_len, pointer_count - 1, bx);
+
+        let llvm_intrinsic =
+            format!("llvm.masked.load.{}.p0", llvm_elem_vec_str);
+        let fn_ty = bx.type_func(
+            &[bx.backend_type(bx.layout_of(ptr_ty)), alignment_ty, mask_ty, llvm_elem_vec_ty],
+            llvm_elem_vec_ty,
+        );
+        let f = bx.declare_cfn(&llvm_intrinsic, llvm::UnnamedAddr::No, fn_ty);
+        let v = bx.call(
+            fn_ty,
+            None,
+            None,
+            f,
+            &[args[1].immediate(), alignment, mask, args[0].immediate()],
+            None,
+        );
+        return Ok(v);
+    }
+
+    if name == sym::simd_masked_store {
+        todo!("masked load")
+    }
+
     macro_rules! arith_red {
         ($name:ident : $integer_reduce:ident, $float_reduce:ident, $ordered:expr, $op:ident,
          $identity:expr) => {

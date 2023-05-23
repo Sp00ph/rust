@@ -511,8 +511,12 @@ pub fn check_platform_intrinsic_type(tcx: TyCtxt<'_>, it: &hir::ForeignItem<'_>)
         | sym::simd_trunc => (1, vec![param(0)], param(0)),
         sym::simd_fpowi => (1, vec![param(0), tcx.types.i32], param(0)),
         sym::simd_fma => (1, vec![param(0), param(0), param(0)], param(0)),
-        sym::simd_gather => (3, vec![param(0), param(1), param(2)], param(0)),
-        sym::simd_scatter => (3, vec![param(0), param(1), param(2)], tcx.mk_unit()),
+        sym::simd_gather | sym::simd_masked_load => {
+            (3, vec![param(0), param(1), param(2)], param(0))
+        }
+        sym::simd_scatter | sym::simd_masked_store => {
+            (3, vec![param(0), param(1), param(2)], tcx.mk_unit())
+        }
         sym::simd_insert => (2, vec![param(0), tcx.types.u32, param(1)], param(0)),
         sym::simd_extract => (2, vec![param(0), tcx.types.u32], param(1)),
         sym::simd_cast
